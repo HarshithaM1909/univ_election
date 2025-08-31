@@ -1,0 +1,40 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" class="dark"> <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>University Elections</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            // Your provided custom color palette
+            'black': { DEFAULT: '#000000', 100: '#000000', 200: '#000000', 300: '#000000', 400: '#000000', 500: '#000000', 600: '#333333', 700: '#666666', 800: '#999999', 900: '#cccccc' },
+            'baby_powder': { DEFAULT: '#fffffc', 100: '#656500', 200: '#caca00', 300: '#ffff30', 400: '#ffff95', 500: '#fffffc', 600: '#fffffb', 700: '#fffffc', 800: '#fffffd', 900: '#fffffe' },
+            'khaki': { DEFAULT: '#beb7a4', 100: '#29261d', 200: '#524c3a', 300: '#7c7258', 400: '#a09679', 500: '#beb7a4', 600: '#cbc5b5', 700: '#d8d3c8', 800: '#e5e2da', 900: '#f2f0ed' },
+            'orange_wheel': { DEFAULT: '#ff7f11', 100: '#361900', 200: '#6c3200', 300: '#a24c00', 400: '#d86500', 500: '#ff7f11', 600: '#ff993f', 700: '#ffb26f', 800: '#ffcc9f', 900: '#ffe5cf' },
+            'coquelicot': { DEFAULT: '#ff3f00', 100: '#330d00', 200: '#661a00', 300: '#992600', 400: '#cc3300', 500: '#ff3f00', 600: '#ff6633', 700: '#ff8c66', 800: '#ffb399', 900: '#ffd9cc' }
+          }
+        }
+      }
+    }
+    </script>
+
+    <link href="https://api.fontshare.com/v2/css?f[]=clash-display@200,400,700,500,600,300&display=swap" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Clash Display', sans-serif; }
+    </style>
+
+</head>
+<body class="bg-khaki-900 dark:bg-black-600 text-black-100 dark:text-baby_powder antialiased">
+    <main class="min-h-screen flex items-center justify-center p-4">
+        {% block content %}
+        {% endblock %}
+    </main>
+</body>
+</html>
