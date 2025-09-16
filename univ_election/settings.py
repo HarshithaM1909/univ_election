@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 import os
 from pathlib import Path
 import environ
+import json
 from dotenv import load_dotenv
 from urllib.parse import urlparse
 
@@ -31,14 +32,15 @@ environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
 # SECURITY WARNING: keep the secret key used in production secret!
 # Use env() for consistency and better defaults
-SECRET_KEY = env('SECRET_KEY', default='django-insecure-default-dev-key')
+SECRET_KEY = env('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 # Use env.bool() for proper boolean casting
-DEBUG = env.bool('DEBUG', default=True)
+DEBUG = env.bool('DEBUG')
 
 # Use env.list() to automatically split the comma-separated string
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['*'])
+RESULTS_ACCESS_TOKEN = env("RESULTS_ACCESS_TOKEN")
 
 # Application definition
 
@@ -91,6 +93,20 @@ DATABASES = {
     'default': env.db(),
 }
 
+# --- Blockchain Config ---
+# Ensure this entire block is present and correct
+BLOCKCHAIN_RPC_URL = env("BLOCKCHAIN_RPC_URL")
+VOTING_CONTRACT_ADDRESS = env("VOTING_CONTRACT_ADDRESS")
+ELECTION_OFFICER_PRIVATE_KEY = env("ELECTION_OFFICER_PRIVATE_KEY")
+
+
+# Load the Contract ABI from the JSON file
+VOTING_CONTRACT_ABI = ''
+try:
+    with open(os.path.join(BASE_DIR, 'univ_election/contract_abi.json')) as f:
+        VOTING_CONTRACT_ABI = json.load(f)
+except FileNotFoundError:
+    print("WARNING: contract_abi.json not found.")
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators

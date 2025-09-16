@@ -1,0 +1,159 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="fixed top-4 right-4 z-50">
+    <video id="proctor-video" playsinline muted autoplay class="w-48 h-auto rounded-lg shadow-lg border-2 border-khaki-700"></video>
+    <div id="proctor-alert" class="hidden absolute inset-0 bg-red-500/80 rounded-lg flex items-center justify-center text-center p-2">
+        <p class="text-white font-bold text-lg animate-pulse">FACE NOT DETECTED</p>
+    </div>
+</div>
+
+<div class="w-full max-w-7xl mx-auto p-4 md-p-8">
+    <div class="text-center mb-8">
+        <h1 class="text-3xl md:text-5xl font-semibold text-baby_powder">Select Your Candidates</h1>
+        <p class="text-khaki mt-2">You must choose exactly 10 options.</p>
+    </div>
+
+    {% if messages %}
+        <div class="max-w-md mx-auto mb-6">
+        {% for message in messages %}
+            <div class="p-4 rounded-lg text-sm bg-red-500/20 text-red-500 dark:text-red-400" role="alert">
+                {{ message }}
+            </div>
+        {% endfor %}
+        </div>
+    {% endif %}
+
+    <form id="vote-form" method="POST">
+        {% csrf_token %}
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
+            {% for candidate in candidates %}
+            <label class="relative cursor-pointer">
+                <input type="checkbox" name="candidate_pks" value="{{ candidate.pk }}" class="peer sr-only">
+                <div class="bg-black-500 rounded-lg shadow-md overflow-hidden text-center p-4 transition-all duration-300 ring-4 ring-transparent peer-checked:ring-orange_wheel transform hover:-translate-y-1">
+                    <img src="{{ candidate.photo_url }}" alt="{{ candidate.name }}" class="w-32 h-32 rounded-full mx-auto object-cover border-4 border-black-600">
+                    <h3 class="mt-4 font-semibold text-lg text-baby_powder">{{ candidate.name }}</h3>
+                    <p class="text-sm text-khaki-600">{{ candidate.forum }}</p>
+                </div>
+            </label>
+            {% endfor %}
+            <label class="relative cursor-pointer">
+                <input type="checkbox" name="candidate_pks" value="nota" class="peer sr-only">
+                <div class="bg-black-500 rounded-lg shadow-md overflow-hidden text-center p-4 flex flex-col justify-center items-center h-full transition-all duration-300 ring-4 ring-transparent peer-checked:ring-orange_wheel transform hover:-translate-y-1">
+                     <h3 class="mt-4 font-semibold text-2xl text-baby_powder">NOTA</h3>
+                    <p class="text-sm text-khaki-600">(None Of The Above)</p>
+                </div>
+            </label>
+        </div>
+
+        <div class="sticky bottom-0 left-0 right-0 w-full mt-8 p-4 bg-black-600/80 backdrop-blur-sm">
+            <div class="max-w-md mx-auto text-center">
+                <p id="selection-counter" class="text-baby_powder mb-2 font-medium">0 / 10 selected</p>
+                <button 
+                    id="submit-button"
+                    type="submit" 
+                    class="w-full py-3 px-4 bg-orange_wheel rounded-lg text-baby_powder font-semibold text-lg transition-all duration-300 disabled:bg-khaki-700 disabled:text-khaki-400 disabled:cursor-not-allowed"
+                    disabled>
+                    Confirm & Submit Vote
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/tone@14.7.77/build/Tone.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+
+<script>
+    console.log("Proctoring script started.");
+
+    const video = document.getElementById('proctor-video');
+    const proctorAlert = document.getElementById('proctor-alert');
+    const voteForm = document.getElementById('vote-form');
+
+    let noFaceCounter = 0;
+    const alertThreshold = 3; 
+    let detectionInterval;
+
+    console.log("Loading face detection models...");
+    Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri('/static/models'),
+    ]).then(() => {
+        console.log("✅ Models loaded successfully!");
+        startVideo();
+    }).catch(err => {
+        console.error("❌ ERROR: Failed to load models.", err);
+        alert("CRITICAL ERROR: Could not load face detection models. Proctoring is disabled. Please contact the election officer.");
+    });
+
+    function startVideo() {
+        console.log("Attempting to start webcam...");
+        navigator.mediaDevices.getUserMedia({ video: {} })
+            .then(stream => {
+                console.log("✅ Webcam access granted.");
+                video.srcObject = stream;
+            })
+            .catch(err => {
+                console.error("❌ ERROR: Could not access webcam.", err);
+                alert("Webcam access was denied. Proctoring cannot be enabled.");
+            });
+    }
+
+    video.addEventListener('play', () => {
+        console.log("Video stream started. Initializing detection loop.");
+        const synth = new Tone.Synth().toDestination();
+        
+        detectionInterval = setInterval(async () => {
+            const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions());
+            console.log(`Faces detected: ${detections.length}, No-face counter: ${noFaceCounter}`);
+
+            if (detections.length === 0) {
+                noFaceCounter++;
+            } else {
+                noFaceCounter = 0;
+                proctorAlert.classList.add('hidden');
+            }
+
+            if (noFaceCounter > alertThreshold) {
+                console.log("ALERT TRIGGERED!");
+                proctorAlert.classList.remove('hidden');
+                synth.triggerAttackRelease("C5", "8n");
+            }
+        }, 1000);
+    });
+
+    voteForm.addEventListener('submit', () => {
+        console.log("Vote submitted. Stopping camera and detection loop.");
+        clearInterval(detectionInterval);
+        if (video.srcObject) {
+            video.srcObject.getTracks().forEach(track => track.stop());
+        }
+    });
+</script>
+
+<script>
+    const form = document.getElementById('vote-form');
+    const checkboxes = form.querySelectorAll('input[type="checkbox"]');
+    const submitButton = document.getElementById('submit-button');
+    const counter = document.getElementById('selection-counter');
+    const requiredSelections = 10;
+
+    form.addEventListener('change', () => {
+        const checkedCount = form.querySelectorAll('input[type="checkbox"]:checked').length;
+        counter.textContent = `${checkedCount} / ${requiredSelections} selected`;
+        
+        if (checkedCount === requiredSelections) {
+            submitButton.disabled = false;
+            counter.classList.remove('text-red-400');
+            counter.classList.add('text-green-400');
+        } else {
+            submitButton.disabled = true;
+            if (checkedCount > requiredSelections) {
+                counter.classList.add('text-red-400');
+            } else {
+                 counter.classList.remove('text-red-400', 'text-green-400');
+            }
+        }
+    });
+</script>
+{% endblock %}

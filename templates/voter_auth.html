@@ -1,49 +1,108 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="w-full max-w-md mx-auto p-8 bg-baby_powder dark:bg-black-500 rounded-2xl shadow-lg">
-    <div class="text-center mb-8">
-        <h1 class="text-3xl md:text-4xl font-semibold text-black-600 dark:text-baby_powder">Voter Authentication</h1>
-        <p class="text-khaki dark:text-khaki-600 mt-2">Please scan your ID or enter your Student ID to proceed.</p>
-    </div>
-
-    <div class="mb-6">
-        <div id="qr-scanner-placeholder" class="w-full h-64 bg-khaki-900 dark:bg-black-600 rounded-lg flex items-center justify-center">
-            <p class="text-khaki dark:text-khaki-700">QR Scanner Loading...</p>
-        </div>
-    </div>
-
-    <div class="relative mb-6">
-        <div class="absolute inset-0 flex items-center">
-            <span class="w-full border-t border-khaki-700 dark:border-black-700"></span>
-        </div>
-        <div class="relative flex justify-center text-sm">
-            <span class="px-2 bg-baby_powder dark:bg-black-500 text-khaki dark:text-khaki-600">OR</span>
-        </div>
-    </div>
-
-    <form method="POST">
-        {% csrf_token %}
-        <div>
-            <label for="student_id" class="block text-sm font-normal text-black-700 dark:text-khaki-600 mb-2">Student ID Number</label>
-            <input 
-                type="text" 
-                name="student_id" 
-                id="student_id" 
-                class="w-full px-4 py-3 bg-khaki-800 dark:bg-black-600 border border-transparent rounded-lg text-black-600 dark:text-baby_powder focus:outline-none focus:ring-2 focus:ring-orange_wheel focus:border-transparent transition"
-                placeholder="e.g., 23CA101"
-                required
-            >
-        </div>
-
-        <div class="mt-8">
-            <button 
-                type="submit" 
-                class="w-full py-3 px-4 bg-orange_wheel hover:bg-coquelicot rounded-lg text-baby_powder font-semibold text-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange_wheel dark:focus:ring-offset-black-500 transition-all duration-300 transform hover:scale-105"
-            >
-                Verify & Proceed
-            </button>
-        </div>
-    </form>
+<div id="start-screen" class="text-center">
+    <h1 class="text-5xl font-semibold text-baby_powder">University Election Kiosk</h1>
+    <p class="text-khaki mt-4">Click below to begin the secure voting process.</p>
+    <button id="start-button" class="mt-8 py-3 px-8 bg-orange_wheel hover:bg-coquelicot rounded-lg text-baby_powder font-semibold text-lg transition-all duration-300 transform hover:scale-105">
+        Start Session
+    </button>
 </div>
+
+<div id="auth-content" class="w-full max-w-md hidden mx-auto">
+    <div class="p-8 bg-baby_powder dark:bg-black-500 rounded-2xl shadow-lg">
+    
+        {% if messages %}
+            <div class="mb-6 space-y-2">
+            {% for message in messages %}
+                <div class="p-4 rounded-lg text-sm
+                    {% if message.tags == 'error' %} bg-red-500/20 text-red-500 dark:text-red-400 
+                    {% elif message.tags == 'warning' %} bg-yellow-500/20 text-yellow-500 dark:text-yellow-400
+                    {% else %} bg-green-500/20 text-green-500 dark:text-green-400 
+                    {% endif %}"
+                    role="alert">
+                    {{ message }}
+                </div>
+            {% endfor %}
+            </div>
+        {% endif %}
+    
+        <div class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-semibold text-black-600 dark:text-baby_powder">Voter Authentication</h1>
+            <p class="text-khaki dark:text-khaki-600 mt-2">Please scan your ID or enter your Student ID to proceed.</p>
+        </div>
+    
+        <div class="mb-6">
+            <div id="reader" class="w-full rounded-lg overflow-hidden"></div>
+        </div>
+    
+        <div class="relative mb-6">
+            <div class="absolute inset-0 flex items-center"><span class="w-full border-t border-khaki-700 dark:border-black-700"></span></div>
+            <div class="relative flex justify-center text-sm"><span class="px-2 bg-baby_powder dark:bg-black-500 text-khaki dark:text-khaki-600">OR</span></div>
+        </div>
+    
+        <form id="auth-form" method="POST">
+            {% csrf_token %}
+            <div>
+                <label for="student_id" class="block text-sm font-normal text-black-700 dark:text-khaki-600 mb-2">Student ID Number</label>
+                <input 
+                    type="text" 
+                    name="student_id" 
+                    id="student_id" 
+                    class="w-full px-4 py-3 bg-khaki-800 dark:bg-black-600 border border-transparent rounded-lg text-black-600 dark:text-baby_powder focus:outline-none focus:ring-2 focus:ring-orange_wheel focus:border-transparent transition"
+                    placeholder="e.g., 24CS101"
+                    required
+                >
+            </div>
+            <div class="mt-8">
+                <button type="submit" class="w-full py-3 px-4 bg-orange_wheel hover:bg-coquelicot rounded-lg text-baby_powder font-semibold text-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange_wheel dark:focus:ring-offset-black-500 transition-all duration-300 transform hover:scale-105">
+                    Verify & Proceed
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/tone@14.7.77/build/Tone.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+<script>
+    const startButton = document.getElementById('start-button');
+    const startScreen = document.getElementById('start-screen');
+    const authContent = document.getElementById('auth-content');
+
+    // --- QR Scanner Setup ---
+    // Define the scanner object when the script loads
+    const html5QrcodeScanner = new Html5QrcodeScanner(
+        "reader", { fps: 10, qrbox: { width: 250, height: 250 } }, false
+    );
+
+    function onScanSuccess(decodedText, decodedResult) {
+        console.log(`Code matched = ${decodedText}`, decodedResult);
+        document.getElementById('student_id').value = decodedText;
+        document.getElementById('auth-form').submit();
+        html5QrcodeScanner.clear();
+    }
+
+    function onScanFailure(error) { /* Ignore */ }
+
+    // --- Start Button Logic ---
+    startButton.addEventListener('click', async () => {
+        // 1. Unlock browser audio for the proctoring alert later
+        await Tone.start();
+        console.log('Audio Context started successfully by user interaction.');
+
+        // 2. Request fullscreen
+        document.documentElement.requestFullscreen().catch(err => {
+            console.error(`Fullscreen Error: ${err.message}`);
+        });
+
+        // 3. Show the authentication UI
+        startScreen.classList.add('hidden');
+        authContent.classList.remove('hidden');
+        
+        // 4. MOVED: Start the scanner only AFTER the container is visible
+        html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+    });
+</script>
 {% endblock %}

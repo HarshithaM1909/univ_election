@@ -1,0 +1,144 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="w-full max-w-4xl mx-auto p-4 md:p-8">
+    <div class="text-center mb-8">
+        <h1 class="text-3xl md:text-5xl font-semibold text-baby_powder">Roster Creation Tool</h1>
+        <p class="text-khaki mt-2">Scan student ID QR codes or enter them manually to build the list.</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div class="bg-black-500 rounded-lg p-6 space-y-6">
+            <div>
+                <h2 class="text-xl font-semibold text-baby_powder mb-4">QR Code Scanner</h2>
+                <div id="reader" class="w-full rounded-lg overflow-hidden bg-black-600"></div>
+                <div id="start-scan-prompt" class="text-center p-4 text-khaki">
+                    <button id="start-scan-button" class="py-2 px-4 bg-gray-600 hover:bg-gray-700 rounded-lg text-baby_powder font-semibold">Click to Start Camera</button>
+                </div>
+            </div>
+            
+            <div>
+                <h2 class="text-xl font-semibold text-baby_powder mb-4">Manual Entry</h2>
+                <div class="flex space-x-2">
+                    <input type="text" id="manual-id-input" placeholder="e.g., 23CA101" class="flex-grow px-4 py-2 bg-khaki-800 dark:bg-black-600 border border-transparent rounded-lg text-black-600 dark:text-baby_powder focus:outline-none focus:ring-2 focus:ring-orange_wheel">
+                    <button id="manual-add-button" class="py-2 px-4 bg-orange_wheel hover:bg-coquelicot rounded-lg text-baby_powder font-semibold transition-colors">Add</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-black-500 rounded-lg p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold text-baby_powder">Added IDs (<span id="scan-count">0</span>)</h2>
+                <button id="clear-button" class="text-sm text-khaki-400 hover:text-red-400">Clear List</button>
+            </div>
+            <div id="scanned-list" class="h-64 overflow-y-auto bg-black-600 rounded-lg p-2 space-y-1">
+                </div>
+            <button id="download-button" class="mt-4 w-full py-3 px-4 bg-orange_wheel hover:bg-coquelicot rounded-lg text-baby_powder font-semibold text-lg transition-all duration-300 disabled:bg-khaki-700 disabled:cursor-not-allowed" disabled>
+                Download Roster (.csv)
+            </button>
+        </div>
+    </div>
+     <div class="text-center mt-8">
+        <a href="{% url 'officer_portal' %}" class="text-khaki-600 hover:text-orange_wheel transition-colors">
+            &larr; Back to Portal
+        </a>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/tone@14.7.77/build/Tone.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // --- DOM Elements ---
+    const scanCountEl = document.getElementById('scan-count');
+    const scannedListEl = document.getElementById('scanned-list');
+    const downloadButton = document.getElementById('download-button');
+    const clearButton = document.getElementById('clear-button');
+    const manualInput = document.getElementById('manual-id-input');
+    const manualAddButton = document.getElementById('manual-add-button');
+    const startScanButton = document.getElementById('start-scan-button');
+    const startScanPrompt = document.getElementById('start-scan-prompt');
+
+    // --- State ---
+    let scannedIds = new Set();
+    const synth = new Tone.Synth().toDestination();
+    const html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 }, false);
+
+    // --- Core Functions ---
+    const updateUI = () => {
+        scanCountEl.textContent = scannedIds.size;
+        scannedListEl.innerHTML = '';
+        scannedIds.forEach(id => {
+            const div = document.createElement('div');
+            div.className = 'bg-black-700 text-baby_powder p-2 rounded text-sm';
+            div.textContent = id;
+            scannedListEl.appendChild(div);
+        });
+        downloadButton.disabled = scannedIds.size === 0;
+    };
+
+    const addIdToList = (id) => {
+        const normalizedId = id.trim().toUpperCase();
+        if (normalizedId === '') return;
+
+        if (!scannedIds.has(normalizedId)) {
+            scannedIds.add(normalizedId);
+            updateUI();
+            synth.triggerAttackRelease("C5", "8n");
+        } else {
+            synth.triggerAttackRelease("A4", "8n");
+        }
+    };
+
+    function onScanSuccess(decodedText, decodedResult) {
+        addIdToList(decodedText);
+    }
+    
+    function onScanFailure(error) { /* This function can be empty */ }
+
+    // --- Event Listeners ---
+    startScanButton.addEventListener('click', async () => {
+        await Tone.start();
+        console.log('Audio Context Unlocked');
+        html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+        startScanPrompt.style.display = 'none';
+    });
+
+    manualAddButton.addEventListener('click', () => {
+        addIdToList(manualInput.value);
+        manualInput.value = '';
+        manualInput.focus();
+    });
+    
+    manualInput.addEventListener('keypress', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            manualAddButton.click();
+        }
+    });
+    
+    clearButton.addEventListener('click', () => {
+        if (confirm('Are you sure you want to clear the entire list?')) {
+            scannedIds.clear();
+            updateUI();
+        }
+    });
+    
+    downloadButton.addEventListener('click', () => {
+        let csvContent = "data:text/csv;charset=utf-8,student_id\r\n";
+        scannedIds.forEach(id => { csvContent += id + "\r\n"; });
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "student_roster.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    });
+
+    // --- Initial UI Setup ---
+    updateUI();
+});
+</script>
+{% endblock %}

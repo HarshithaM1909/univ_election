@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="w-full max-w-2xl mx-auto p-4 md:p-8">
+    <div class="bg-black-500 rounded-lg shadow-lg p-8">
+        <h1 class="text-3xl font-semibold text-baby_powder mb-2">Import Student Roster</h1>
+        <p class="text-khaki mb-6">Upload a CSV file containing a single 'student_id' column.</p>
+        
+        {% if messages %}
+            <div class="mb-6 space-y-2">
+            {% for message in messages %}
+                <div class="p-4 rounded-lg text-sm
+                    {% if message.tags == 'error' %} bg-red-500/20 text-red-500 dark:text-red-400 
+                    {% else %} bg-green-500/20 text-green-500 dark:text-green-400 
+                    {% endif %}"
+                    role="alert">
+                    {{ message }}
+                </div>
+            {% endfor %}
+            </div>
+        {% endif %}
+
+        <form method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div>
+                <label for="student_roster_file" class="block text-sm font-medium text-khaki-600 mb-2">Student Roster CSV File</label>
+                <input type="file" name="student_roster_file" id="student_roster_file" required
+                       class="block w-full text-sm text-khaki-400
+                              file:mr-4 file:py-2 file:px-4
+                              file:rounded-full file:border-0
+                              file:text-sm file:font-semibold
+                              file:bg-orange_wheel/20 file:text-orange_wheel
+                              hover:file:bg-orange_wheel/30">
+            </div>
+            <div class="mt-8 flex justify-end space-x-4">
+                <a href="{% url 'officer_portal' %}" class="py-2 px-4 rounded-lg text-baby_powder font-semibold hover:bg-black-600 transition-colors">
+                    &larr; Back to Portal
+                </a>
+                <button type="submit" class="py-2 px-4 bg-orange_wheel hover:bg-coquelicot rounded-lg text-baby_powder font-semibold transition-colors">
+                    Import Students
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="w-full max-w-5xl mx-auto p-4 md:p-8 text-center">
+    
+    <div id="results-content" class="hidden">
+        <h1 class="text-5xl font-bold text-baby_powder">Election Results</h1>
+        <p class="text-khaki mt-2">The following candidates have been elected.</p>
+        
+        <div class="mt-12 text-left space-y-4">
+            {% for candidate, position in results %}
+            <div class="bg-black-500 rounded-lg p-4 flex items-center space-x-6 border-l-4 border-orange_wheel/50 shadow-lg">
+                <img src="{{ candidate.photo_url }}" alt="{{ candidate.name }}" class="w-20 h-20 rounded-full object-cover">
+                <div class="flex-grow">
+                    <p class="text-2xl font-semibold text-baby_powder">{{ candidate.name }}</p>
+                    <p class="text-lg font-medium text-orange_wheel">{{ position }}</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-3xl font-bold text-baby_powder">{{ candidate.vote_count }}</p>
+                    <p class="text-sm text-khaki-600">Votes</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <a href="{% url 'download_results_pdf' %}" class="mt-12 inline-block py-3 px-8 bg-khaki/80 hover:bg-khaki rounded-lg text-black-600 font-semibold no-underline">
+            Download Results as PDF
+        </a>
+    </div>
+
+    <div id="reveal-overlay" class="min-h-screen fixed inset-0 bg-black-600 flex flex-col items-center justify-center z-50">
+        <h1 id="countdown-display" class="text-9xl font-bold text-baby_powder"></h1>
+        <button id="reveal-button" class="mt-8 py-4 px-10 bg-orange_wheel hover:bg-coquelicot rounded-lg text-baby_powder font-bold text-2xl transform hover:scale-105 transition-transform">
+             Reveal Results 
+        </button>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+
+<script>
+    const revealButton = document.getElementById('reveal-button');
+    const countdownDisplay = document.getElementById('countdown-display');
+    const revealOverlay = document.getElementById('reveal-overlay');
+    const resultsContent = document.getElementById('results-content');
+
+    revealButton.addEventListener('click', () => {
+        revealButton.style.display = 'none';
+        
+        let count = 5;
+        countdownDisplay.textContent = count;
+
+        const countdownInterval = setInterval(() => {
+            count--;
+            if (count > 0) {
+                countdownDisplay.textContent = count;
+            } else {
+                countdownDisplay.textContent = "🏆";
+                clearInterval(countdownInterval);
+                
+                setTimeout(() => {
+                    revealOverlay.style.opacity = 0;
+                    revealOverlay.style.pointerEvents = 'none';
+                    resultsContent.classList.remove('hidden');
+
+                    confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
+                }, 1000);
+            }
+        }, 1000);
+    });
+</script>
+{% endblock %}

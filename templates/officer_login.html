@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="w-full max-w-md mx-auto p-8 bg-baby_powder dark:bg-black-500 rounded-2xl shadow-lg">
+    
+    {% if messages %}
+        <div class="mb-6 space-y-2">
+        {% for message in messages %}
+            <div class="p-4 rounded-lg text-sm bg-red-500/20 text-red-500 dark:text-red-400" role="alert">
+                {{ message }}
+            </div>
+        {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="text-center mb-8">
+        <h1 class="text-3xl md:text-4xl font-semibold text-black-600 dark:text-baby_powder">Officer Control Panel</h1>
+        <p class="text-khaki dark:text-khaki-600 mt-2">Please log in to continue.</p>
+    </div>
+
+    <form method="POST" action="{% url 'officer_login' %}">
+        {% csrf_token %}
+        <div class="space-y-6">
+            <div>
+                <label for="id_username" class="block text-sm font-normal text-black-700 dark:text-khaki-600 mb-2">Username</label>
+                <input 
+                    type="text" 
+                    name="username" 
+                    id="id_username"
+                    class="w-full px-4 py-3 bg-khaki-800 dark:bg-black-600 border border-transparent rounded-lg text-black-600 dark:text-baby_powder focus:outline-none focus:ring-2 focus:ring-orange_wheel focus:border-transparent transition"
+                    required
+                >
+            </div>
+            <div>
+                <label for="id_password" class="block text-sm font-normal text-black-700 dark:text-khaki-600 mb-2">Password</label>
+                <input 
+                    type="password" 
+                    name="password" 
+                    id="id_password"
+                    class="w-full px-4 py-3 bg-khaki-800 dark:bg-black-600 border border-transparent rounded-lg text-black-600 dark:text-baby_powder focus:outline-none focus:ring-2 focus:ring-orange_wheel focus:border-transparent transition"
+                    required
+                >
+            </div>
+        </div>
+        
+        <div class="mt-8">
+            <button 
+                type="submit" 
+                class="w-full py-3 px-4 bg-orange_wheel hover:bg-coquelicot rounded-lg text-baby_powder font-semibold text-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange_wheel dark:focus:ring-offset-black-500 transition-all duration-300 transform hover:scale-105"
+            >
+                Login
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
