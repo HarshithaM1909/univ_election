@@ -10,8 +10,7 @@ from django.db.models import F
 from django.http import JsonResponse, HttpResponseForbidden, HttpResponse
 from django.conf import settings
 from django.template.loader import render_to_string
-from weasyprint import HTML
-from .models import Student, Candidate, Vote
+from .models import Student, Candidate, Vote, University, Profile
 from .blockchain_utils import send_vote_to_blockchain
 from .forms import CandidateForm
 from django.core.paginator import Paginator
@@ -25,6 +24,25 @@ import io
 def is_superuser(user):
     return user.is_superuser
 
+def get_current_university(request):
+    """
+    Returns the University instance relevant to the current request.
+    
+    For logged-in officers: uses their Profile's linked university.
+    For kiosk/anonymous flows: falls back to the first University in the database.
+    
+    Returns None if no university exists at all.
+    """
+    if request.user.is_authenticated:
+        try:
+            profile = Profile.objects.select_related('university').get(user=request.user)
+            return profile.university
+        except Profile.DoesNotExist:
+            pass
+    
+    # Fallback: use the first (or only) university in the database
+    return University.objects.first()
+
 # =============================================================================
 # Main Homepage
 # =============================================================================
@@ -35,14 +53,20 @@ def homepage_view(request):
 # Voter Flow Views
 # =============================================================================
 def voter_auth_view(request):
+    university = get_current_university(request)
+    
     if request.method == 'POST':
         student_id_from_form = request.POST.get('student_id', '').strip().upper()
         if not student_id_from_form:
             messages.error(request, 'Please provide a Student ID.')
             return redirect('voter_kiosk')
 
+        if not university:
+            messages.error(request, 'No university is configured. Please contact the election officer.')
+            return redirect('voter_kiosk')
+
         try:
-            student = Student.objects.get(student_id=student_id_from_form)
+            student = Student.objects.get(university=university, student_id=student_id_from_form)
             if student.has_voted:
                 messages.warning(request, f"The Student ID '{student.student_id}' has already been used to vote.")
                 return redirect('voter_kiosk')
@@ -59,27 +83,29 @@ def voting_view(request):
     student_pk = request.session.get('verified_student_pk')
     if not student_pk:
         messages.error(request, "Authentication required. Please verify your Student ID.")
-        return redirect('voter_kiosk') # CORRECTED
+        return redirect('voter_kiosk')
 
     try:
-        student = Student.objects.get(pk=student_pk)
+        student = Student.objects.select_related('university').get(pk=student_pk)
     except Student.DoesNotExist:
         messages.error(request, "Invalid session. Please re-authenticate.")
         if 'verified_student_pk' in request.session:
             del request.session['verified_student_pk']
-        return redirect('voter_kiosk') # CORRECTED
+        return redirect('voter_kiosk')
 
     if student.has_voted:
         messages.warning(request, "You have already cast your vote.")
         if 'verified_student_pk' in request.session:
             del request.session['verified_student_pk']
-        return redirect('voter_kiosk') # CORRECTED
+        return redirect('voter_kiosk')
+
+    university = student.university
 
     if request.method == 'POST':
         selected_pks = request.POST.getlist('candidate_pks')
         if len(selected_pks) != 10:
             messages.error(request, "You must select exactly 10 candidates.")
-            candidates = Candidate.objects.all()
+            candidates = Candidate.objects.filter(university=university)
             return render(request, 'voting_page.html', {'candidates': candidates})
 
         try:
@@ -87,14 +113,18 @@ def voting_view(request):
                 student_to_update = Student.objects.select_for_update().get(pk=student.pk)
                 if student_to_update.has_voted:
                     messages.warning(request, "Vote has already been cast.")
-                    return redirect('voter_kiosk') # CORRECTED
+                    return redirect('voter_kiosk')
 
                 for pk in selected_pks:
                     if pk != 'nota':
-                        candidate = Candidate.objects.get(pk=pk)
+                        candidate = Candidate.objects.get(pk=pk, university=university)
                         candidate.vote_count = F('vote_count') + 1
                         candidate.save(update_fields=['vote_count'])
-                        Vote.objects.create(student=student, candidate=candidate)
+                        Vote.objects.create(
+                            university=university,
+                            student=student,
+                            candidate=candidate,
+                        )
                 
                 student_to_update.has_voted = True
                 student_to_update.save(update_fields=['has_voted'])
@@ -116,7 +146,7 @@ def voting_view(request):
         del request.session['verified_student_pk']
         return redirect('thank_you')
 
-    candidates = Candidate.objects.all()
+    candidates = Candidate.objects.filter(university=university)
     context = {'candidates': candidates}
     return render(request, 'voting_page.html', context)
 
@@ -150,25 +180,33 @@ def officer_portal_view(request):
 @login_required(login_url='officer_login')
 @user_passes_test(is_superuser)
 def dashboard_view(request):
-    candidates = Candidate.objects.all().order_by('-vote_count')
-    total_votes = Vote.objects.count()
+    university = get_current_university(request)
+    candidates = Candidate.objects.filter(university=university).order_by('-vote_count')
+    total_votes = Vote.objects.filter(university=university).count()
     context = {'candidates': candidates, 'total_votes_cast': total_votes}
     return render(request, 'dashboard.html', context)
 
 @login_required(login_url='officer_login')
 @user_passes_test(is_superuser)
 def dashboard_api_view(request):
-    candidates_data = Candidate.objects.order_by('-vote_count').values(
+    university = get_current_university(request)
+    candidates_data = Candidate.objects.filter(university=university).order_by('-vote_count').values(
         'name', 'photo_url', 'forum', 'vote_count'
     )
-    total_votes = Vote.objects.count()
+    total_votes = Vote.objects.filter(university=university).count()
     data = {'candidates': list(candidates_data), 'total_votes_cast': total_votes}
     return JsonResponse(data)
 
 @login_required(login_url='officer_login')
 @user_passes_test(is_superuser)
 def import_students_view(request):
+    university = get_current_university(request)
+    
     if request.method == 'POST':
+        if not university:
+            messages.error(request, "No university is configured. Please create one in the admin panel first.")
+            return redirect('import_students')
+        
         csv_file = request.FILES.get('student_roster_file')
         if not csv_file or not csv_file.name.endswith('.csv'):
             messages.error(request, "Please upload a valid CSV file.")
@@ -181,7 +219,7 @@ def import_students_view(request):
             next(reader)  # Skip header
             
             students_to_create = [
-                Student(student_id=row[0].strip()) 
+                Student(university=university, student_id=row[0].strip()) 
                 for row in reader if row and row[0].strip()
             ]
             
@@ -202,7 +240,8 @@ def results_reveal_view(request, token):
     if not valid_token or token != valid_token:
         return HttpResponseForbidden("Access Denied: Invalid security token.")
 
-    winners = Candidate.objects.order_by('-vote_count')[:10]
+    university = get_current_university(request)
+    winners = Candidate.objects.filter(university=university).order_by('-vote_count')[:10]
     positions = [
         "President", "Vice President", "General Secretary", "Treasurer",
         "Cultural Secretary", "Sports Secretary", "Technical Head",
@@ -224,7 +263,8 @@ def go_to_results_view(request):
 @login_required(login_url='officer_login')
 @user_passes_test(is_superuser)
 def download_results_pdf(request):
-    winners = Candidate.objects.order_by('-vote_count')[:10]
+    university = get_current_university(request)
+    winners = Candidate.objects.filter(university=university).order_by('-vote_count')[:10]
     positions = [
         "President", "Vice President", "General Secretary", "Treasurer",
         "Cultural Secretary", "Sports Secretary", "Technical Head",
@@ -237,6 +277,8 @@ def download_results_pdf(request):
     response = HttpResponse(content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="election-results-{context["date"]}.pdf"'
     
+    # Lazy import to avoid crashing the app if WeasyPrint's native libs aren't installed
+    from weasyprint import HTML
     HTML(string=html_string).write_pdf(response)
     return response
 
@@ -250,7 +292,8 @@ def create_roster_view(request):
 @login_required(login_url='officer_login')
 @user_passes_test(is_superuser)
 def voter_list_view(request):
-    student_list = Student.objects.all().order_by('student_id')
+    university = get_current_university(request)
+    student_list = Student.objects.filter(university=university).order_by('student_id')
     
     # Paginate the list to handle thousands of students
     paginator = Paginator(student_list, 50) # Show 50 students per page
@@ -267,7 +310,8 @@ def voter_list_view(request):
 @login_required(login_url='officer_login')
 @user_passes_test(is_superuser)
 def manage_candidates_view(request):
-    candidates = Candidate.objects.all().order_by('name')
+    university = get_current_university(request)
+    candidates = Candidate.objects.filter(university=university).order_by('name')
     form = CandidateForm()
     context = {
         'candidates': candidates,
@@ -280,9 +324,12 @@ def manage_candidates_view(request):
 @user_passes_test(is_superuser)
 def add_candidate_view(request):
     if request.method == 'POST':
+        university = get_current_university(request)
         form = CandidateForm(request.POST)
         if form.is_valid():
-            form.save()
+            candidate = form.save(commit=False)
+            candidate.university = university
+            candidate.save()
             messages.success(request, f"Candidate '{form.cleaned_data['name']}' added successfully.")
         else:
             messages.error(request, "There was an error with your submission.")
@@ -300,4 +347,3 @@ def delete_candidate_view(request, pk):
         except Candidate.DoesNotExist:
             messages.error(request, "Candidate not found.")
     return redirect('manage_candidates')
-

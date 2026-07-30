@@ -2,8 +2,19 @@
 
 from django.conf import settings
 from web3 import Web3
-from web3.middleware import ExtraDataToPOAMiddleware
 import time
+
+# Guard the POA middleware import for compatibility across web3.py versions
+try:
+    from web3.middleware import ExtraDataToPOAMiddleware
+    _has_poa_middleware = True
+except ImportError:
+    try:
+        from web3.middleware import geth_poa_middleware as ExtraDataToPOAMiddleware
+        _has_poa_middleware = True
+    except ImportError:
+        _has_poa_middleware = False
+        print("WARNING: Could not import POA middleware. POA chain support may be unavailable.")
 
 def send_vote_to_blockchain(student_id: str):
     """
@@ -14,7 +25,8 @@ def send_vote_to_blockchain(student_id: str):
         # 1. Connect to the blockchain network
         w3 = Web3(Web3.HTTPProvider(settings.BLOCKCHAIN_RPC_URL))
 
-        w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
+        if _has_poa_middleware:
+            w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
 
         if not w3.is_connected():
             print("Error: Could not connect to the blockchain.")
