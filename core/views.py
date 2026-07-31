@@ -105,7 +105,7 @@ def voting_view(request):
         selected_pks = request.POST.getlist('candidate_pks')
         if len(selected_pks) != 10:
             messages.error(request, "You must select exactly 10 candidates.")
-            candidates = Candidate.objects.filter(university=university)
+            candidates = Candidate.objects.filter(university=university).order_by('name')
             return render(request, 'voting_page.html', {'candidates': candidates})
 
         try:
@@ -146,7 +146,7 @@ def voting_view(request):
         del request.session['verified_student_pk']
         return redirect('thank_you')
 
-    candidates = Candidate.objects.filter(university=university)
+    candidates = Candidate.objects.filter(university=university).order_by('name')
     context = {'candidates': candidates}
     return render(request, 'voting_page.html', context)
 
@@ -173,12 +173,12 @@ def officer_login_view(request):
     return render(request, 'officer_login.html', {'form': form})
 
 @login_required(login_url='officer_login')
-@user_passes_test(is_superuser)
+@user_passes_test(is_superuser, login_url='officer_login')
 def officer_portal_view(request):
     return render(request, 'officer_portal.html')
 
 @login_required(login_url='officer_login')
-@user_passes_test(is_superuser)
+@user_passes_test(is_superuser, login_url='officer_login')
 def dashboard_view(request):
     university = get_current_university(request)
     candidates = Candidate.objects.filter(university=university).order_by('-vote_count')
@@ -187,7 +187,7 @@ def dashboard_view(request):
     return render(request, 'dashboard.html', context)
 
 @login_required(login_url='officer_login')
-@user_passes_test(is_superuser)
+@user_passes_test(is_superuser, login_url='officer_login')
 def dashboard_api_view(request):
     university = get_current_university(request)
     candidates_data = Candidate.objects.filter(university=university).order_by('-vote_count').values(
@@ -198,7 +198,7 @@ def dashboard_api_view(request):
     return JsonResponse(data)
 
 @login_required(login_url='officer_login')
-@user_passes_test(is_superuser)
+@user_passes_test(is_superuser, login_url='officer_login')
 def import_students_view(request):
     university = get_current_university(request)
     
@@ -219,12 +219,14 @@ def import_students_view(request):
             next(reader)  # Skip header
             
             students_to_create = [
-                Student(university=university, student_id=row[0].strip()) 
+                Student(university=university, student_id=row[0].strip().upper())
                 for row in reader if row and row[0].strip()
             ]
-            
+
+            before_count = Student.objects.filter(university=university).count()
             Student.objects.bulk_create(students_to_create, ignore_conflicts=True)
-            messages.success(request, f"Successfully imported {len(students_to_create)} students.")
+            after_count = Student.objects.filter(university=university).count()
+            messages.success(request, f"Successfully imported {after_count - before_count} new students ({len(students_to_create)} rows read from file).")
         except Exception as e:
             messages.error(request, f"An error occurred during import: {e}")
         return redirect('officer_portal')
@@ -234,7 +236,7 @@ def import_students_view(request):
 # Results Flow Views
 # =============================================================================
 @login_required(login_url='officer_login')
-@user_passes_test(is_superuser)
+@user_passes_test(is_superuser, login_url='officer_login')
 def results_reveal_view(request, token):
     valid_token = settings.RESULTS_ACCESS_TOKEN
     if not valid_token or token != valid_token:
@@ -252,7 +254,7 @@ def results_reveal_view(request, token):
     return render(request, 'results_reveal.html', context)
 
 @login_required(login_url='officer_login')
-@user_passes_test(is_superuser)
+@user_passes_test(is_superuser, login_url='officer_login')
 def go_to_results_view(request):
     token = settings.RESULTS_ACCESS_TOKEN
     if not token:
@@ -261,7 +263,7 @@ def go_to_results_view(request):
     return redirect(reverse('results_reveal', kwargs={'token': token}))
 
 @login_required(login_url='officer_login')
-@user_passes_test(is_superuser)
+@user_passes_test(is_superuser, login_url='officer_login')
 def download_results_pdf(request):
     university = get_current_university(request)
     winners = Candidate.objects.filter(university=university).order_by('-vote_count')[:10]
@@ -284,13 +286,13 @@ def download_results_pdf(request):
 
 # NEW view for the Roster Builder page
 @login_required(login_url='officer_login')
-@user_passes_test(is_superuser)
+@user_passes_test(is_superuser, login_url='officer_login')
 def create_roster_view(request):
     return render(request, 'create_roster.html')
 
 # NEW view for displaying the voter roster
 @login_required(login_url='officer_login')
-@user_passes_test(is_superuser)
+@user_passes_test(is_superuser, login_url='officer_login')
 def voter_list_view(request):
     university = get_current_university(request)
     student_list = Student.objects.filter(university=university).order_by('student_id')
@@ -308,7 +310,7 @@ def voter_list_view(request):
 
 # NEW view for listing and managing candidates
 @login_required(login_url='officer_login')
-@user_passes_test(is_superuser)
+@user_passes_test(is_superuser, login_url='officer_login')
 def manage_candidates_view(request):
     university = get_current_university(request)
     candidates = Candidate.objects.filter(university=university).order_by('name')
@@ -321,10 +323,13 @@ def manage_candidates_view(request):
 
 # NEW view for adding a candidate (handles the form submission)
 @login_required(login_url='officer_login')
-@user_passes_test(is_superuser)
+@user_passes_test(is_superuser, login_url='officer_login')
 def add_candidate_view(request):
     if request.method == 'POST':
         university = get_current_university(request)
+        if not university:
+            messages.error(request, "No university is configured. Please create one in the admin panel first.")
+            return redirect('manage_candidates')
         form = CandidateForm(request.POST)
         if form.is_valid():
             candidate = form.save(commit=False)
@@ -337,11 +342,12 @@ def add_candidate_view(request):
 
 # NEW view for deleting a candidate
 @login_required(login_url='officer_login')
-@user_passes_test(is_superuser)
+@user_passes_test(is_superuser, login_url='officer_login')
 def delete_candidate_view(request, pk):
     if request.method == 'POST':
+        university = get_current_university(request)
         try:
-            candidate = Candidate.objects.get(pk=pk)
+            candidate = Candidate.objects.get(pk=pk, university=university)
             messages.warning(request, f"Candidate '{candidate.name}' has been deleted.")
             candidate.delete()
         except Candidate.DoesNotExist:
