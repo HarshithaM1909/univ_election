@@ -11,7 +11,7 @@
 <div class="w-full max-w-7xl mx-auto p-4 md-p-8">
     <div class="text-center mb-8">
         <h1 class="text-3xl md:text-5xl font-semibold text-baby_powder">Select Your Candidates</h1>
-        <p class="text-khaki mt-2">You must choose exactly 10 options.</p>
+        <p class="text-khaki mt-2">You have 10 votes. Select up to 10 candidates &mdash; if you use fewer, you must select NOTA so your remaining votes are counted as NOTA.</p>
     </div>
 
     {% if messages %}
@@ -38,7 +38,7 @@
             </label>
             {% endfor %}
             <label class="relative cursor-pointer">
-                <input type="checkbox" name="candidate_pks" value="nota" class="peer sr-only">
+                <input type="checkbox" id="nota-checkbox" name="candidate_pks" value="nota" class="peer sr-only">
                 <div class="bg-black-500 rounded-lg shadow-md overflow-hidden text-center p-4 flex flex-col justify-center items-center h-full transition-all duration-300 ring-4 ring-transparent peer-checked:ring-orange_wheel transform hover:-translate-y-1">
                      <h3 class="mt-4 font-semibold text-2xl text-baby_powder">NOTA</h3>
                     <p class="text-sm text-khaki-600">(None Of The Above)</p>
@@ -48,7 +48,8 @@
 
         <div class="sticky bottom-0 left-0 right-0 w-full mt-8 p-4 bg-black-600/80 backdrop-blur-sm">
             <div class="max-w-md mx-auto text-center">
-                <p id="selection-counter" class="text-baby_powder mb-2 font-medium">0 / 10 selected</p>
+                <p id="selection-counter" class="text-baby_powder mb-2 font-medium">0 / 10 candidates selected</p>
+                <p id="nota-hint" class="text-sm text-khaki-600 mb-2 hidden"></p>
                 <button 
                     id="submit-button"
                     type="submit" 
@@ -133,26 +134,48 @@
 
 <script>
     const form = document.getElementById('vote-form');
-    const checkboxes = form.querySelectorAll('input[type="checkbox"]');
+    const candidateCheckboxes = form.querySelectorAll('input[name="candidate_pks"]:not(#nota-checkbox)');
+    const notaCheckbox = document.getElementById('nota-checkbox');
     const submitButton = document.getElementById('submit-button');
     const counter = document.getElementById('selection-counter');
-    const requiredSelections = 10;
+    const notaHint = document.getElementById('nota-hint');
+    const totalVotes = 10;
 
     form.addEventListener('change', () => {
-        const checkedCount = form.querySelectorAll('input[type="checkbox"]:checked').length;
-        counter.textContent = `${checkedCount} / ${requiredSelections} selected`;
-        
-        if (checkedCount === requiredSelections) {
-            submitButton.disabled = false;
+        const checkedCandidates = Array.from(candidateCheckboxes).filter(cb => cb.checked);
+        const numSelected = checkedCandidates.length;
+        const remaining = totalVotes - numSelected;
+
+        // Don't allow selecting more than 10 candidates.
+        if (numSelected > totalVotes) {
+            checkedCandidates[checkedCandidates.length - 1].checked = false;
+            return;
+        }
+
+        counter.textContent = `${Math.min(numSelected, totalVotes)} / ${totalVotes} candidates selected`;
+
+        if (remaining > 0) {
+            notaHint.textContent = `${remaining} vote(s) remain unused. Select NOTA to count them as NOTA votes.`;
+            notaHint.classList.remove('hidden');
+            notaCheckbox.disabled = false;
+        } else {
+            notaHint.textContent = `All 10 votes used on candidates. NOTA is not needed.`;
+            notaHint.classList.remove('hidden');
+            notaCheckbox.checked = false;
+            notaCheckbox.disabled = true;
+        }
+
+        const hasSelection = numSelected > 0 || notaCheckbox.checked;
+        const remainingCovered = remaining === 0 || notaCheckbox.checked;
+        const canSubmit = hasSelection && remainingCovered;
+        submitButton.disabled = !canSubmit;
+
+        if (canSubmit) {
             counter.classList.remove('text-red-400');
             counter.classList.add('text-green-400');
         } else {
-            submitButton.disabled = true;
-            if (checkedCount > requiredSelections) {
-                counter.classList.add('text-red-400');
-            } else {
-                 counter.classList.remove('text-red-400', 'text-green-400');
-            }
+            counter.classList.remove('text-green-400');
+            counter.classList.add('text-red-400');
         }
     });
 </script>

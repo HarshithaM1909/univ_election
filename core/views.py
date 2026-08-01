@@ -103,8 +103,22 @@ def voting_view(request):
 
     if request.method == 'POST':
         selected_pks = request.POST.getlist('candidate_pks')
-        if len(selected_pks) != 10:
-            messages.error(request, "You must select exactly 10 candidates.")
+        nota_selected = 'nota' in selected_pks
+        candidate_pks = [pk for pk in selected_pks if pk != 'nota']
+        num_candidates_selected = len(candidate_pks)
+
+        if num_candidates_selected > 10:
+            messages.error(request, "You cannot select more than 10 candidates.")
+            candidates = Candidate.objects.filter(university=university).order_by('name')
+            return render(request, 'voting_page.html', {'candidates': candidates})
+
+        remaining_votes = 10 - num_candidates_selected
+        if remaining_votes > 0 and not nota_selected:
+            messages.error(
+                request,
+                f"You have {remaining_votes} unused vote(s). Select NOTA to assign them to 'None Of The Above', "
+                "or select 10 candidates in total."
+            )
             candidates = Candidate.objects.filter(university=university).order_by('name')
             return render(request, 'voting_page.html', {'candidates': candidates})
 
@@ -115,17 +129,21 @@ def voting_view(request):
                     messages.warning(request, "Vote has already been cast.")
                     return redirect('voter_kiosk')
 
-                for pk in selected_pks:
-                    if pk != 'nota':
-                        candidate = Candidate.objects.get(pk=pk, university=university)
-                        candidate.vote_count = F('vote_count') + 1
-                        candidate.save(update_fields=['vote_count'])
-                        Vote.objects.create(
-                            university=university,
-                            student=student,
-                            candidate=candidate,
-                        )
-                
+                for pk in candidate_pks:
+                    candidate = Candidate.objects.get(pk=pk, university=university)
+                    candidate.vote_count = F('vote_count') + 1
+                    candidate.save(update_fields=['vote_count'])
+                    Vote.objects.create(
+                        university=university,
+                        student=student,
+                        candidate=candidate,
+                    )
+
+                if remaining_votes > 0:
+                    university_to_update = University.objects.select_for_update().get(pk=university.pk)
+                    university_to_update.nota_votes = F('nota_votes') + remaining_votes
+                    university_to_update.save(update_fields=['nota_votes'])
+
                 student_to_update.has_voted = True
                 student_to_update.save(update_fields=['has_voted'])
 
