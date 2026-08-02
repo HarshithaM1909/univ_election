@@ -11,3 +11,6 @@ class CandidateForm(forms.ModelForm):
             'photo_url': forms.URLInput(attrs={'class': 'w-full px-4 py-2 bg-black-600 rounded-lg focus:ring-orange_wheel'}),
             'forum': forms.TextInput(attrs={'class': 'w-full px-4 py-2 bg-black-600 rounded-lg focus:ring-orange_wheel'}),
         }
+        labels = {
+            'forum': 'Department',
+        }

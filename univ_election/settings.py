@@ -42,6 +42,12 @@ DEBUG = env.bool('DEBUG')
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['*'])
 RESULTS_ACCESS_TOKEN = env("RESULTS_ACCESS_TOKEN")
 
+# Shared secret used to authenticate the merge_election_results management command
+# when it pulls ballot data from another instance of this app. Defaults to None
+# (endpoint disabled) so deploying this code doesn't require every environment's
+# .env to be updated in lockstep.
+MERGE_API_TOKEN = env('MERGE_API_TOKEN', default=None)
+
 # Application definition
 
 INSTALLED_APPS = [

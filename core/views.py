@@ -5,11 +5,13 @@ from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.db.models import F
-from django.http import JsonResponse, HttpResponseForbidden, HttpResponse
+from django.http import JsonResponse, HttpResponseForbidden, HttpResponse, HttpResponseBadRequest
 from django.conf import settings
 from django.template.loader import render_to_string
+from django.utils import timezone
+from django.views.decorators.http import require_GET
 from .models import Student, Candidate, Vote, University, Profile
 from .blockchain_utils import send_vote_to_blockchain
 from .forms import CandidateForm
@@ -17,6 +19,7 @@ from django.core.paginator import Paginator
 import datetime
 import csv
 import io
+import secrets
 
 # =============================================================================
 # Helper Functions
@@ -215,6 +218,56 @@ def dashboard_api_view(request):
     data = {'candidates': list(candidates_data), 'total_votes_cast': total_votes}
     return JsonResponse(data)
 
+@require_GET
+def export_ballots_view(request):
+    """
+    Service-to-service export used by the `merge_election_results` management
+    command to pull ballot data from another instance of this app. Authenticated
+    with a shared bearer token (settings.MERGE_API_TOKEN) instead of a session,
+    since the caller has no Django login.
+    """
+    expected = f"Bearer {settings.MERGE_API_TOKEN}" if settings.MERGE_API_TOKEN else None
+    provided = request.headers.get('Authorization', '')
+    if not expected or not secrets.compare_digest(provided, expected):
+        return HttpResponseForbidden("Access Denied.")
+
+    university_id = request.GET.get('university_id')
+    if not university_id:
+        return HttpResponseBadRequest("Missing required 'university_id' parameter.")
+
+    try:
+        university = University.objects.get(university_id=university_id)
+    except University.DoesNotExist:
+        return JsonResponse({'error': 'university not found'}, status=404)
+
+    candidates = list(
+        Candidate.objects.filter(university=university).values('forum', 'name', 'vote_count')
+    )
+    students = list(
+        Student.objects.filter(university=university).values('student_id', 'has_voted')
+    )
+    votes = [
+        {
+            'student_id': v['student__student_id'],
+            'candidate_forum': v['candidate__forum'],
+            'timestamp': v['timestamp'],
+        }
+        for v in Vote.objects.filter(university=university)
+        .select_related('student', 'candidate')
+        .values('student__student_id', 'candidate__forum', 'timestamp')
+    ]
+
+    data = {
+        'university_id': university.university_id,
+        'university_name': university.name,
+        'generated_at': timezone.now(),
+        'nota_votes': university.nota_votes,
+        'candidates': candidates,
+        'students': students,
+        'votes': votes,
+    }
+    return JsonResponse(data)
+
 @login_required(login_url='officer_login')
 @user_passes_test(is_superuser, login_url='officer_login')
 def import_students_view(request):
@@ -352,8 +405,11 @@ def add_candidate_view(request):
         if form.is_valid():
             candidate = form.save(commit=False)
             candidate.university = university
-            candidate.save()
-            messages.success(request, f"Candidate '{form.cleaned_data['name']}' added successfully.")
+            try:
+                candidate.save()
+                messages.success(request, f"Candidate '{form.cleaned_data['name']}' added successfully.")
+            except IntegrityError:
+                messages.error(request, f"A candidate for the '{form.cleaned_data['forum']}' department already exists.")
         else:
             messages.error(request, "There was an error with your submission.")
     return redirect('manage_candidates')

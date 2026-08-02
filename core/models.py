@@ -37,6 +37,7 @@ class Candidate(models.Model):
 
     class Meta:
         ordering = ['-vote_count', 'name']
+        unique_together = ('university', 'forum')
 
 # UPDATED: Student is now linked to a University
 class Student(models.Model):

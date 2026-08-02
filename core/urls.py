@@ -22,6 +22,7 @@ urlpatterns = [
     # ...
     path('officer/voter-list/', views.voter_list_view, name='voter_list'),
     path('officer/create-roster/', views.create_roster_view, name='create_roster'),
+    path('officer/api/export-ballots/', views.export_ballots_view, name='export_ballots_api'),
     path('officer/logout/', auth_views.LogoutView.as_view(next_page='homepage'), name='officer_logout'),
 
     path('dashboard/', views.dashboard_view, name='dashboard'),
