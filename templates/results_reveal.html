@@ -8,16 +8,14 @@
         <p class="text-khaki mt-2">The following candidates have been elected.</p>
         
         <div class="mt-12 text-left space-y-4">
-            {% for candidate, position in results %}
+            {% for candidate in results %}
             <div class="bg-black-500 rounded-lg p-4 flex items-center space-x-6 border-l-4 border-orange_wheel/50 shadow-lg">
+                <div class="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full bg-orange_wheel/20 text-orange_wheel text-xl font-bold">
+                    {{ forloop.counter }}
+                </div>
                 <img src="{{ candidate.photo_url }}" alt="{{ candidate.name }}" class="w-20 h-20 rounded-full object-cover">
                 <div class="flex-grow">
                     <p class="text-2xl font-semibold text-baby_powder">{{ candidate.name }}</p>
-                    <p class="text-lg font-medium text-orange_wheel">{{ position }}</p>
-                </div>
-                <div class="text-right">
-                    <p class="text-3xl font-bold text-baby_powder">{{ candidate.vote_count }}</p>
-                    <p class="text-sm text-khaki-600">Votes</p>
                 </div>
             </div>
             {% endfor %}

@@ -67,17 +67,15 @@
     <table>
         <thead>
             <tr>
-                <th>Elected Position</th>
+                <th>#</th>
                 <th>Candidate Name</th>
-                <th>Total Votes</th>
             </tr>
         </thead>
         <tbody>
-            {% for candidate, position in results %}
+            {% for candidate in results %}
             <tr>
-                <td class="position">{{ position }}</td>
+                <td class="position">{{ forloop.counter }}</td>
                 <td>{{ candidate.name }}</td>
-                <td>{{ candidate.vote_count }}</td>
             </tr>
             {% endfor %}
         </tbody>

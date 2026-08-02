@@ -23,7 +23,7 @@ import secrets
 
 # =============================================================================
 # Helper Functions
-# =============================================================================
+# ============================================================================
 def is_superuser(user):
     return user.is_superuser
 
@@ -202,7 +202,7 @@ def officer_portal_view(request):
 @user_passes_test(is_superuser, login_url='officer_login')
 def dashboard_view(request):
     university = get_current_university(request)
-    candidates = Candidate.objects.filter(university=university).order_by('-vote_count')
+    candidates = Candidate.objects.filter(university=university).order_by('name')
     total_votes = Vote.objects.filter(university=university).count()
     context = {'candidates': candidates, 'total_votes_cast': total_votes}
     return render(request, 'dashboard.html', context)
@@ -211,7 +211,7 @@ def dashboard_view(request):
 @user_passes_test(is_superuser, login_url='officer_login')
 def dashboard_api_view(request):
     university = get_current_university(request)
-    candidates_data = Candidate.objects.filter(university=university).order_by('-vote_count').values(
+    candidates_data = Candidate.objects.filter(university=university).order_by('name').values(
         'name', 'photo_url', 'forum', 'vote_count'
     )
     total_votes = Vote.objects.filter(university=university).count()
@@ -314,13 +314,7 @@ def results_reveal_view(request, token):
         return HttpResponseForbidden("Access Denied: Invalid security token.")
 
     university = get_current_university(request)
-    winners = Candidate.objects.filter(university=university).order_by('-vote_count')[:10]
-    positions = [
-        "President", "Vice President", "General Secretary", "Treasurer",
-        "Cultural Secretary", "Sports Secretary", "Technical Head",
-        "Welfare Officer", "Publications Head", "Marketing Head"
-    ]
-    results = list(zip(winners, positions))
+    results = list(Candidate.objects.filter(university=university).order_by('-vote_count', 'name')[:10])
     context = {'results': results}
     return render(request, 'results_reveal.html', context)
 
@@ -337,13 +331,7 @@ def go_to_results_view(request):
 @user_passes_test(is_superuser, login_url='officer_login')
 def download_results_pdf(request):
     university = get_current_university(request)
-    winners = Candidate.objects.filter(university=university).order_by('-vote_count')[:10]
-    positions = [
-        "President", "Vice President", "General Secretary", "Treasurer",
-        "Cultural Secretary", "Sports Secretary", "Technical Head",
-        "Welfare Officer", "Publications Head", "Marketing Head"
-    ]
-    results = list(zip(winners, positions))
+    results = list(Candidate.objects.filter(university=university).order_by('-vote_count', 'name')[:10])
     context = {'results': results, 'date': datetime.date.today()}
     
     html_string = render_to_string('results_pdf.html', context)
