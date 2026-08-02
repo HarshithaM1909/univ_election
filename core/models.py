@@ -1,5 +1,8 @@
 # core/models.py
 from django.db import models
+from django.db.models import F
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 from django.contrib.auth.models import User
 import uuid
 
@@ -65,3 +68,16 @@ class Vote(models.Model):
 
     class Meta:
         unique_together = ('student', 'candidate')
+
+
+@receiver(post_delete, sender=Vote)
+def decrement_vote_count_on_delete(sender, instance, **kwargs):
+    """
+    Candidate.vote_count is a denormalized counter (incremented when a Vote is
+    cast) rather than a live count of Vote rows, so it must be kept in sync
+    whenever a Vote is removed - including deletes from the admin, which
+    bypass the voting view entirely.
+    """
+    Candidate.objects.filter(pk=instance.candidate_id, vote_count__gt=0).update(
+        vote_count=F('vote_count') - 1
+    )
