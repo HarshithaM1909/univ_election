@@ -46,6 +46,23 @@ def get_current_university(request):
     # Fallback: use the first (or only) university in the database
     return University.objects.first()
 
+def get_live_nota_votes(university):
+    """
+    Computes NOTA votes live from Student/Vote rows instead of trusting the
+    University.nota_votes counter, which can drift out of sync if vote/student
+    data is ever reset without also resetting the counter.
+
+    Every student who has voted uses all 10 of their votes, either on
+    candidates or covered by NOTA (enforced at submission time in
+    voting_view), so unused slots per voted student always equal their NOTA
+    contribution: total NOTA = 10 * (voted students) - (candidate votes cast).
+    """
+    if not university:
+        return 0
+    voted_students = Student.objects.filter(university=university, has_voted=True).count()
+    candidate_votes = Vote.objects.filter(university=university).count()
+    return max(0, voted_students * 10 - candidate_votes)
+
 # =============================================================================
 # Main Homepage
 # =============================================================================
@@ -142,11 +159,6 @@ def voting_view(request):
                         candidate=candidate,
                     )
 
-                if remaining_votes > 0:
-                    university_to_update = University.objects.select_for_update().get(pk=university.pk)
-                    university_to_update.nota_votes = F('nota_votes') + remaining_votes
-                    university_to_update.save(update_fields=['nota_votes'])
-
                 student_to_update.has_voted = True
                 student_to_update.save(update_fields=['has_voted'])
 
@@ -204,7 +216,8 @@ def dashboard_view(request):
     university = get_current_university(request)
     candidates = Candidate.objects.filter(university=university).order_by('name')
     total_votes = Vote.objects.filter(university=university).count()
-    context = {'candidates': candidates, 'total_votes_cast': total_votes}
+    nota_votes = get_live_nota_votes(university)
+    context = {'candidates': candidates, 'total_votes_cast': total_votes, 'nota_votes': nota_votes}
     return render(request, 'dashboard.html', context)
 
 @login_required(login_url='officer_login')
@@ -215,7 +228,8 @@ def dashboard_api_view(request):
         'name', 'photo_url', 'forum', 'vote_count'
     )
     total_votes = Vote.objects.filter(university=university).count()
-    data = {'candidates': list(candidates_data), 'total_votes_cast': total_votes}
+    nota_votes = get_live_nota_votes(university)
+    data = {'candidates': list(candidates_data), 'total_votes_cast': total_votes, 'nota_votes': nota_votes}
     return JsonResponse(data)
 
 @require_GET
@@ -261,7 +275,7 @@ def export_ballots_view(request):
         'university_id': university.university_id,
         'university_name': university.name,
         'generated_at': timezone.now(),
-        'nota_votes': university.nota_votes,
+        'nota_votes': get_live_nota_votes(university),
         'candidates': candidates,
         'students': students,
         'votes': votes,

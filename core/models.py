@@ -11,7 +11,6 @@ class University(models.Model):
     name = models.CharField(max_length=255)
     university_id = models.CharField(max_length=20, unique=True, help_text="A unique ID for the university, e.g., MSRIT_BLR")
     location = models.CharField(max_length=255, blank=True)
-    nota_votes = models.PositiveIntegerField(default=0, help_text="Total NOTA votes accumulated, including unused votes from partial ballots.")
 
     def __str__(self):
         return self.name

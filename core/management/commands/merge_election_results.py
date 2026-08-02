@@ -6,6 +6,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from core.models import Candidate, Student, University, Vote
+from core.views import get_live_nota_votes
 
 
 class Command(BaseCommand):
@@ -52,6 +53,9 @@ class Command(BaseCommand):
         apply_changes = options['apply']
         with transaction.atomic():
             self._write(university, report, apply_changes)
+            # Computed inside the transaction so a dry run still previews the
+            # post-merge total accurately, even though it gets rolled back.
+            report['nota_votes_after_merge'] = get_live_nota_votes(university)
             if not apply_changes:
                 transaction.set_rollback(True)
 
@@ -143,8 +147,11 @@ class Command(BaseCommand):
                     continue
                 staged_votes.append(candidate)
 
-            if staged_votes:
-                importable[student_id] = (local_student, staged_votes)
+            # Import even with zero staged candidate votes: a student who cast
+            # a full-NOTA ballot (0 candidates) remotely has no Vote rows to
+            # bring over, but still needs has_voted=True locally so they're
+            # counted in the live NOTA total (see get_live_nota_votes).
+            importable[student_id] = (local_student, staged_votes)
 
         return {
             'unmatched_forums': unmatched_forums,
@@ -218,10 +225,11 @@ class Command(BaseCommand):
             out.write("No students voted on both systems.")
 
         out.write('')
+        preview_tag = '' if apply_changes else ' [preview — will apply on --apply]'
         out.write(
-            f"NOTA — local: {university.nota_votes}, remote: {payload.get('nota_votes')} "
-            "(informational only, NOT auto-merged — no per-student NOTA record exists to reconcile safely; "
-            "adjust University.nota_votes manually if appropriate)."
+            f"NOTA votes after merge: {report['nota_votes_after_merge']}{preview_tag} "
+            "(computed live from merged Student/Vote data, not a stored counter — "
+            "always reflects both systems' actual ballots, including full-NOTA voters)."
         )
 
         if not apply_changes:
