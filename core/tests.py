@@ -386,3 +386,73 @@ class ResultsRevealSmokeTest(TestCase):
         self.client.force_login(officer)
         response = self.client.get(reverse('results_reveal', kwargs={'token': 'reveal-token'}))
         self.assertEqual(response.status_code, 200)
+
+
+class ResetElectionTests(TestCase):
+    """
+    Covers the out-of-sync scenario that motivated this feature: a student
+    marked has_voted=True with no corresponding Vote rows (e.g. because votes
+    were cleared by hand without also resetting has_voted) permanently
+    inflates get_live_nota_votes. Reset must clear both together.
+    """
+
+    def setUp(self):
+        self.university = University.objects.create(name="Reset U", university_id="RESETU")
+        self.candidate = Candidate.objects.create(university=self.university, name="Alice", photo_url="http://x/a.png", forum="CS")
+        self.officer = User.objects.create_superuser('resetofficer', 'o@x.com', 'pass12345')
+        Profile.objects.create(user=self.officer, university=self.university)
+
+        self.voted_with_ballot = Student.objects.create(university=self.university, student_id='R1', has_voted=True)
+        Vote.objects.create(university=self.university, student=self.voted_with_ballot, candidate=self.candidate)
+        self.candidate.vote_count = 1
+        self.candidate.save(update_fields=['vote_count'])
+
+        # Orphaned state: has_voted=True but no Vote rows, as if votes were
+        # deleted by hand without resetting the flag.
+        self.orphaned_voter = Student.objects.create(university=self.university, student_id='R2', has_voted=True)
+
+        self.not_voted = Student.objects.create(university=self.university, student_id='R3', has_voted=False)
+
+    def test_get_requires_officer_login(self):
+        response = self.client.get(reverse('reset_election'))
+        self.assertNotEqual(response.status_code, 200)
+
+    def test_get_shows_current_stats_including_orphaned_nota(self):
+        self.client.force_login(self.officer)
+        response = self.client.get(reverse('reset_election'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['student_count'], 3)
+        self.assertEqual(response.context['voted_count'], 2)
+        self.assertEqual(response.context['vote_count'], 1)
+        # R1 contributes 9 (1 candidate vote), R2 (orphaned) contributes 10 -> 19.
+        self.assertEqual(response.context['nota_votes'], 19)
+
+    def test_post_without_confirmation_does_nothing(self):
+        self.client.force_login(self.officer)
+        response = self.client.post(reverse('reset_election'), {'confirm': 'not reset'})
+        self.assertRedirects(response, reverse('reset_election'))
+
+        self.voted_with_ballot.refresh_from_db()
+        self.assertTrue(self.voted_with_ballot.has_voted)
+        self.assertEqual(Vote.objects.filter(university=self.university).count(), 1)
+
+    def test_post_with_confirmation_clears_votes_and_unlocks_all_students(self):
+        self.client.force_login(self.officer)
+        response = self.client.post(reverse('reset_election'), {'confirm': 'RESET'})
+        self.assertRedirects(response, reverse('officer_portal'))
+
+        self.assertEqual(Vote.objects.filter(university=self.university).count(), 0)
+        for student in (self.voted_with_ballot, self.orphaned_voter, self.not_voted):
+            student.refresh_from_db()
+            self.assertFalse(student.has_voted)
+
+        self.candidate.refresh_from_db()
+        self.assertEqual(self.candidate.vote_count, 0)
+        self.assertEqual(get_live_nota_votes(self.university), 0)
+
+    def test_reset_preserves_candidates_and_student_roster(self):
+        self.client.force_login(self.officer)
+        self.client.post(reverse('reset_election'), {'confirm': 'RESET'})
+
+        self.assertEqual(Candidate.objects.filter(university=self.university).count(), 1)
+        self.assertEqual(Student.objects.filter(university=self.university).count(), 3)

@@ -24,6 +24,7 @@ urlpatterns = [
     path('officer/create-roster/', views.create_roster_view, name='create_roster'),
     path('officer/api/export-ballots/', views.export_ballots_view, name='export_ballots_api'),
     path('officer/logout/', auth_views.LogoutView.as_view(next_page='homepage'), name='officer_logout'),
+    path('officer/reset-election/', views.reset_election_view, name='reset_election'),
 
     path('dashboard/', views.dashboard_view, name='dashboard'),
     path('dashboard/api/', views.dashboard_api_view, name='dashboard_api'),

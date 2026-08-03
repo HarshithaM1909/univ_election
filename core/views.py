@@ -21,7 +21,7 @@ import csv
 import io
 import secrets
 
-# =============================================================================
+# ============================================================================
 # Helper Functions
 # ============================================================================
 def is_superuser(user):
@@ -212,9 +212,37 @@ def officer_portal_view(request):
 
 @login_required(login_url='officer_login')
 @user_passes_test(is_superuser, login_url='officer_login')
+def reset_election_view(request):
+    university = get_current_university(request)
+
+    if request.method == 'POST':
+        if request.POST.get('confirm') != 'RESET':
+            messages.error(request, "Reset not confirmed. Type RESET exactly to proceed.")
+            return redirect('reset_election')
+
+        with transaction.atomic():
+            Vote.objects.filter(university=university).delete()
+            Student.objects.filter(university=university).update(has_voted=False)
+            Candidate.objects.filter(university=university).update(vote_count=0)
+
+        messages.success(request, "Election data has been reset. All votes cleared and voter roster unlocked.")
+        return redirect('officer_portal')
+
+    context = {
+        'university': university,
+        'candidate_count': Candidate.objects.filter(university=university).count(),
+        'student_count': Student.objects.filter(university=university).count(),
+        'voted_count': Student.objects.filter(university=university, has_voted=True).count(),
+        'vote_count': Vote.objects.filter(university=university).count(),
+        'nota_votes': get_live_nota_votes(university),
+    }
+    return render(request, 'reset_election.html', context)
+
+@login_required(login_url='officer_login')
+@user_passes_test(is_superuser, login_url='officer_login')
 def dashboard_view(request):
     university = get_current_university(request)
-    candidates = Candidate.objects.filter(university=university).order_by('name')
+    candidates = Candidate.objects.filter(university=university).order_by('-vote_count', 'name')
     total_votes = Vote.objects.filter(university=university).count()
     nota_votes = get_live_nota_votes(university)
     context = {'candidates': candidates, 'total_votes_cast': total_votes, 'nota_votes': nota_votes}
@@ -224,7 +252,7 @@ def dashboard_view(request):
 @user_passes_test(is_superuser, login_url='officer_login')
 def dashboard_api_view(request):
     university = get_current_university(request)
-    candidates_data = Candidate.objects.filter(university=university).order_by('name').values(
+    candidates_data = Candidate.objects.filter(university=university).order_by('-vote_count', 'name').values(
         'name', 'photo_url', 'forum', 'vote_count'
     )
     total_votes = Vote.objects.filter(university=university).count()
