@@ -16,6 +16,11 @@
                 <img src="{{ candidate.photo_url }}" alt="{{ candidate.name }}" class="w-20 h-20 rounded-full object-cover">
                 <div class="flex-grow">
                     <p class="text-2xl font-semibold text-baby_powder">{{ candidate.name }}</p>
+                    <p class="text-khaki mt-1">{{ candidate.forum }}</p>
+                </div>
+                <div class="flex-shrink-0 text-right">
+                    <p class="text-3xl font-bold text-orange_wheel">{{ candidate.vote_count }}</p>
+                    <p class="text-khaki text-sm uppercase tracking-wide">Votes</p>
                 </div>
             </div>
             {% endfor %}
