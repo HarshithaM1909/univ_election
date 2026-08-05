@@ -30,7 +30,7 @@ class Profile(models.Model):
 class Candidate(models.Model):
     university = models.ForeignKey(University, on_delete=models.CASCADE, related_name='candidates')
     name = models.CharField(max_length=200)
-    photo_url = models.URLField(max_length=500)
+    photo_url = models.ImageField(upload_to='candidates/', max_length=500)
     forum = models.CharField(max_length=200)
     vote_count = models.PositiveIntegerField(default=0)
 

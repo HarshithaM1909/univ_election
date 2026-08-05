@@ -252,12 +252,22 @@ def dashboard_view(request):
 @user_passes_test(is_superuser, login_url='officer_login')
 def dashboard_api_view(request):
     university = get_current_university(request)
-    candidates_data = Candidate.objects.filter(university=university).order_by('-vote_count', 'name').values(
-        'name', 'photo_url', 'forum', 'vote_count'
-    )
+    candidates = Candidate.objects.filter(university=university).order_by('-vote_count', 'name')
+    # Built from instances rather than .values(): .values('photo_url') would return the
+    # raw stored file path (e.g. "candidates/x.jpg"), not the MEDIA_URL-prefixed URL the
+    # <img> tag needs.
+    candidates_data = [
+        {
+            'name': c.name,
+            'photo_url': c.photo_url.url if c.photo_url else '',
+            'forum': c.forum,
+            'vote_count': c.vote_count,
+        }
+        for c in candidates
+    ]
     total_votes = Vote.objects.filter(university=university).count()
     nota_votes = get_live_nota_votes(university)
-    data = {'candidates': list(candidates_data), 'total_votes_cast': total_votes, 'nota_votes': nota_votes}
+    data = {'candidates': candidates_data, 'total_votes_cast': total_votes, 'nota_votes': nota_votes}
     return JsonResponse(data)
 
 @require_GET
@@ -431,7 +441,7 @@ def add_candidate_view(request):
         if not university:
             messages.error(request, "No university is configured. Please create one in the admin panel first.")
             return redirect('manage_candidates')
-        form = CandidateForm(request.POST)
+        form = CandidateForm(request.POST, request.FILES)
         if form.is_valid():
             candidate = form.save(commit=False)
             candidate.university = university

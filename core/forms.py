@@ -8,7 +8,7 @@ class CandidateForm(forms.ModelForm):
         fields = ['name', 'photo_url', 'forum']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'w-full px-4 py-2 bg-black-600 rounded-lg focus:ring-orange_wheel'}),
-            'photo_url': forms.URLInput(attrs={'class': 'w-full px-4 py-2 bg-black-600 rounded-lg focus:ring-orange_wheel'}),
+            'photo_url': forms.ClearableFileInput(attrs={'class': 'w-full px-4 py-2 bg-black-600 rounded-lg focus:ring-orange_wheel'}),
             'forum': forms.TextInput(attrs={'class': 'w-full px-4 py-2 bg-black-600 rounded-lg focus:ring-orange_wheel'}),
         }
         labels = {

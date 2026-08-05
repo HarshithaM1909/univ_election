@@ -30,14 +30,14 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div class="lg:col-span-1 bg-black-500 rounded-lg p-6 h-fit">
             <h2 class="text-2xl font-semibold text-baby_powder mb-4">Add New Candidate</h2>
-            <form action="{% url 'add_candidate' %}" method="post" class="space-y-4 text-baby_powder">
+            <form action="{% url 'add_candidate' %}" method="post" enctype="multipart/form-data" class="space-y-4 text-baby_powder">
                 {% csrf_token %}
                 <div>
                     <label for="{{ form.name.id_for_label }}">Candidate Name</label>
                     {{ form.name }}
                 </div>
                 <div>
-                    <label for="{{ form.photo_url.id_for_label }}">Photo URL</label>
+                    <label for="{{ form.photo_url.id_for_label }}">Photo</label>
                     {{ form.photo_url }}
                 </div>
                 <div>
@@ -55,7 +55,7 @@
             <div class="space-y-3">
                 {% for candidate in candidates %}
                 <div class="flex items-center bg-black-600 p-3 rounded-lg">
-                    <img src="{{ candidate.photo_url }}" class="w-12 h-12 rounded-full object-cover mr-4">
+                    <img src="{{ candidate.photo_url.url }}" class="w-12 h-12 rounded-full object-cover mr-4">
                     <div class="flex-grow">
                         <p class="font-semibold text-baby_powder">{{ candidate.name }}</p>
                         <p class="text-sm text-khaki-600">{{ candidate.forum }}</p>
