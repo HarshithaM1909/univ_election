@@ -32,8 +32,8 @@
                 <input type="checkbox" name="candidate_pks" value="{{ candidate.pk }}" class="peer sr-only">
                 <div class="bg-black-500 rounded-lg shadow-md overflow-hidden text-center p-4 h-full flex flex-col transition-all duration-300 ring-4 ring-transparent peer-checked:ring-orange_wheel transform hover:-translate-y-1">
                     <img src="{{ candidate.photo_url.url }}" alt="{{ candidate.name }}" class="w-32 h-32 rounded-full mx-auto object-cover border-4 border-black-600">
-                    <h3 class="mt-4 font-semibold text-lg text-baby_powder">{{ candidate.name }}</h3>
-                    <p class="text-sm text-khaki-600 mt-1 min-h-[2.5rem] leading-tight flex items-center justify-center">{{ candidate.forum }}</p>
+                    <h3 class="mt-4 font-semibold text-lg text-baby_powder tracking-wide">{{ candidate.name }}</h3>
+                    <p class="text-sm text-khaki-600 mt-2 min-h-[2.5rem] tracking-wide flex items-center justify-center">{{ candidate.forum }}</p>
                 </div>
             </label>
             {% endfor %}
