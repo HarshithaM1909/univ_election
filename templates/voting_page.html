@@ -50,10 +50,11 @@
             <div class="max-w-md mx-auto text-center">
                 <p id="selection-counter" class="text-baby_powder mb-2 font-medium">0 / 10 candidates selected</p>
                 <p id="nota-hint" class="text-sm text-khaki-600 mb-2 hidden"></p>
-                <button 
+                <p id="scroll-hint" class="text-sm text-orange_wheel mb-2">Scroll down to view all candidates before you can submit &#8595;</p>
+                <button
                     id="submit-button"
-                    type="submit" 
-                    class="w-full py-3 px-4 bg-orange_wheel rounded-lg text-baby_powder font-semibold text-lg transition-all duration-300 disabled:bg-khaki-700 disabled:text-khaki-400 disabled:cursor-not-allowed"
+                    type="submit"
+                    class="w-full py-3 px-4 bg-orange_wheel rounded-lg text-baby_powder font-semibold text-lg transition-opacity duration-300 disabled:bg-khaki-700 disabled:text-khaki-400 disabled:cursor-not-allowed opacity-0 pointer-events-none"
                     disabled>
                     Confirm & Submit Vote
                 </button>
@@ -139,7 +140,29 @@
     const submitButton = document.getElementById('submit-button');
     const counter = document.getElementById('selection-counter');
     const notaHint = document.getElementById('nota-hint');
+    const scrollHint = document.getElementById('scroll-hint');
     const totalVotes = 10;
+
+    // Keep the submit button hidden until the voter has scrolled through the
+    // full candidate list, so votes aren't cast only on whoever appears first.
+    let hasScrolledToBottom = false;
+
+    function checkScrolledToBottom() {
+        if (hasScrolledToBottom) return;
+
+        const scrolledToBottom = (window.innerHeight + window.scrollY) >= (document.documentElement.scrollHeight - 24);
+        if (scrolledToBottom) {
+            hasScrolledToBottom = true;
+            submitButton.classList.remove('opacity-0', 'pointer-events-none');
+            scrollHint.classList.add('hidden');
+            window.removeEventListener('scroll', checkScrolledToBottom);
+            window.removeEventListener('resize', checkScrolledToBottom);
+        }
+    }
+
+    window.addEventListener('scroll', checkScrolledToBottom, { passive: true });
+    window.addEventListener('resize', checkScrolledToBottom);
+    checkScrolledToBottom();
 
     form.addEventListener('change', () => {
         const checkedCandidates = Array.from(candidateCheckboxes).filter(cb => cb.checked);
